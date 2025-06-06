@@ -1,40 +1,146 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="it">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pixel Tool con Fotogrammi</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pixel Tool con Fotogrammi e Risoluzione</title>
   <style>
-    body { font-family: sans-serif; background: #ccc; margin: 0; padding: 0; display: flex; }
-    #sidebar { width: 150px; background: #eee; padding: 10px; overflow-y: auto; height: 100vh; }
-    #main { flex: 1; padding: 20px; text-align: center; }
-    #canvasWrapper { display: inline-block; border: 1px solid #ccc; position: relative; }
-    canvas { image-rendering: pixelated; background: #fff; }
-    .controls { margin-top: 10px; }
-    .frame-buttons button { display: block; width: 100%; margin-bottom: 5px; }
-    .palette { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; max-width: 320px; margin: auto; margin-top: 10px; }
-    .color-swatch { width: 16px; height: 16px; cursor: pointer; border: 1px solid #ccc; }
-    #usedColors { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 2px; justify-content: center; }
-    .used-color { width: 20px; height: 20px; border: 1px solid #000; cursor: pointer; }
-    #popupColors { display: none; position: absolute; background: white; border: 1px solid black; padding: 5px; z-index: 10; }
-    #popupColors .color-swatch { width: 20px; height: 20px; margin: 2px; }
+    body {
+      font-family: sans-serif;
+      background: #ccc;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+    #sidebar {
+      width: 120px;
+      background: #eee;
+      padding: 10px 5px;
+      overflow-y: auto;
+      height: 100vh;
+      box-sizing: border-box;
+      border-right: 1px solid #bbb;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    #main {
+      flex: 1;
+      padding: 20px;
+      text-align: center;
+      overflow: auto;
+      box-sizing: border-box;
+    }
+    #canvasWrapper {
+      display: inline-block;
+      border: 1px solid #ccc;
+      position: relative;
+      background: white;
+      touch-action: none;
+    }
+    canvas {
+      image-rendering: pixelated;
+      display: block;
+      user-select: none;
+    }
+    button {
+      cursor: pointer;
+    }
+    #frameButtons {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      margin-bottom: 10px;
+    }
+    .color-swatch {
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
+    }
+    #colorPalette {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 2px;
+      max-width: 320px;
+      margin: 10px auto 0;
+    }
+    #usedColors {
+      margin-top: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 2px;
+      justify-content: center;
+    }
+    #popupColors {
+      display: none;
+      position: absolute;
+      background: white;
+      border: 1px solid black;
+      padding: 5px;
+      z-index: 10;
+      flex-wrap: wrap;
+      max-width: 220px;
+      max-height: 120px;
+      overflow-y: auto;
+      box-sizing: border-box;
+    }
+    #pickerBtn {
+      margin-left: 10px;
+      padding: 5px 10px;
+    }
+    #pickedColorDisplay {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      vertical-align: middle;
+      border: 1px solid #000;
+      margin-left: 5px;
+    }
+    #replaceColorBtn {
+      margin-left: 10px;
+      padding: 5px 10px;
+    }
+    select {
+      margin-left: 10px;
+      padding: 3px 6px;
+    }
   </style>
 </head>
 <body>
   <div id="sidebar">
     <h4>Fotogrammi</h4>
-    <div class="frame-buttons" id="frameButtons"></div>
+    <div id="frameButtons"></div>
     <button onclick="addFrame()">➕ Nuovo</button>
     <button onclick="duplicateFrame()">📄 Duplica</button>
     <button onclick="playAnimation()">▶️ Play</button>
     <button onclick="stopAnimation()">⏹️ Stop</button>
-    <button onclick="toggleTool('select')">🟦 Seleziona</button>
-    <button onclick="toggleTool('fill')">🪣 Riempimento</button>
   </div>
   <div id="main">
     <h2>Pixel Tool</h2>
-    <label>Colore: <input type="color" id="colorPicker" value="#000000"></label>
-    <div class="palette" id="colorPalette"></div>
+    <label>
+      Risoluzione:
+      <select id="resolutionSelect">
+        <option value="16" selected>16x16</option>
+        <option value="32">32x32</option>
+      </select>
+    </label>
+    <br /><br />
+    <label>
+      Colore:
+      <input type="color" id="colorPicker" value="#000000" />
+    </label>
+    <button id="pickerBtn" title="Contagocce 🎨">🎨</button>
+    <div id="pickedColorDisplay" title="Colore selezionato"></div>
+    <button id="replaceColorBtn" title="Sostituisci colore">Sostituisci colore</button>
+
+    <div id="colorPalette"></div>
     <div id="usedColors"></div>
     <div id="canvasWrapper">
       <canvas id="canvas" width="640" height="640"></canvas>
@@ -50,81 +156,41 @@
     const colorPalette = document.getElementById('colorPalette');
     const usedColorsDiv = document.getElementById('usedColors');
     const popupColors = document.getElementById('popupColors');
+    const pickerBtn = document.getElementById('pickerBtn');
+    const pickedColorDisplay = document.getElementById('pickedColorDisplay');
+    const replaceColorBtn = document.getElementById('replaceColorBtn');
+    const resolutionSelect = document.getElementById('resolutionSelect');
 
-    const gridSize = 16;
-    const pixelSize = 40;
-    let frames = [createEmptyFrame()];
+    let gridSize = parseInt(resolutionSelect.value); // 16 o 32
+    let pixelSize = Math.floor(640 / gridSize); // dimensione pixel per il canvas
+    let frames = [createEmptyFrame(gridSize)];
     let currentFrame = 0;
     let isDrawing = false;
-    let isSelecting = false;
+    let pickingColor = false;
+    let pickedColor = null;
     let animationInterval = null;
-    let tool = 'draw';
-    let selectionStart = null;
 
-    const paletteColors = [ /* omesso per brevità */ ];
+    const paletteColors = [
+      '#000000','#ffffff','#ff0000','#00ff00','#0000ff','#ffff00','#00ffff','#ff00ff',
+      '#800000','#008000','#000080','#808000','#800080','#008080','#c0c0c0','#808080',
+      '#9999ff','#993366','#ffffcc','#ccffff','#660066','#ff8080','#0066cc','#ccccff',
+      '#000080','#ff00ff','#ffff00','#00ffff','#800080','#800000','#008080','#0000ff',
+      '#00ccff','#ccffff','#ccffcc','#ffff99','#99ccff','#ffcc99','#3366ff','#33cccc',
+      '#99cc00','#ff99cc','#ffcc00','#ff9900','#ff6600','#666699','#969696','#003366',
+      '#339966','#003300','#333300','#993300','#993366','#333399','#333333',
+      '#a52a2a','#deb887','#5f9ea0','#7fff00','#d2691e','#ff7f50','#6495ed','#dc143c',
+      '#00ffff','#00008b','#008b8b','#b8860b','#a9a9a9','#006400','#bdb76b','#8b008b',
+      '#556b2f','#ff8c00','#9932cc','#8b0000','#e9967a','#8fbc8f','#483d8b','#2f4f4f',
+      '#00ced1','#9400d3','#ff1493','#00bfff','#696969'
+    ];
 
-    paletteColors.forEach(color => {
-      const swatch = document.createElement('div');
-      swatch.className = 'color-swatch';
-      swatch.style.backgroundColor = color;
-      swatch.onclick = () => colorPicker.value = color;
-      colorPalette.appendChild(swatch);
-    });
-
-    canvas.addEventListener('mousedown', e => {
-      const { x, y } = getXY(e);
-      if (tool === 'draw') {
-        isDrawing = true;
-        drawAt(x, y);
-      } else if (tool === 'select') {
-        selectionStart = { x, y };
-      } else if (tool === 'fill') {
-        floodFill(x, y, frames[currentFrame][y][x], colorPicker.value);
-        drawFrame();
-        updateUsedColors();
-      }
-    });
-    canvas.addEventListener('mouseup', e => {
-      isDrawing = false;
-      if (tool === 'select') {
-        const { x, y } = getXY(e);
-        const area = getSelectionArea(selectionStart, { x, y });
-        highlightSelection(area);
-      }
-    });
-    canvas.addEventListener('mousemove', e => {
-      if (isDrawing && tool === 'draw') {
-        const { x, y } = getXY(e);
-        drawAt(x, y);
-      }
-    });
-    canvas.addEventListener('contextmenu', e => {
-      e.preventDefault();
-      const { x, y } = getXY(e);
-      const clickedColor = frames[currentFrame][y][x];
-      showPopupColors(e.clientX, e.clientY, clickedColor);
-    });
-
-    function toggleTool(name) {
-      tool = name;
-    }
-
-    function getXY(e) {
-      const rect = canvas.getBoundingClientRect();
-      const x = Math.floor((e.clientX - rect.left) / pixelSize);
-      const y = Math.floor((e.clientY - rect.top) / pixelSize);
-      return { x, y };
-    }
-
-    function drawAt(x, y) {
-      if (x >= 0 && x < gridSize && y >= 0 && y < gridSize) {
-        frames[currentFrame][y][x] = colorPicker.value;
-        drawFrame();
-        updateUsedColors();
-      }
+    function createEmptyFrame(size) {
+      return Array.from({ length: size }, () => Array(size).fill('#ffffff'));
     }
 
     function drawFrame() {
+      canvas.width = pixelSize * gridSize;
+      canvas.height = pixelSize * gridSize;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       for (let y = 0; y < gridSize; y++) {
         for (let x = 0; x < gridSize; x++) {
@@ -132,127 +198,248 @@
           ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
         }
       }
-    }
-
-    function floodFill(x, y, targetColor, replacementColor) {
-      if (targetColor === replacementColor) return;
-      const stack = [{ x, y }];
-      while (stack.length) {
-        const { x, y } = stack.pop();
-        if (x < 0 || x >= gridSize || y < 0 || y >= gridSize) continue;
-        if (frames[currentFrame][y][x] !== targetColor) continue;
-        frames[currentFrame][y][x] = replacementColor;
-        stack.push({ x: x + 1, y });
-        stack.push({ x: x - 1, y });
-        stack.push({ x, y: y + 1 });
-        stack.push({ x, y: y - 1 });
+      // griglia
+      ctx.strokeStyle = '#999';
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= gridSize; i++) {
+        ctx.beginPath();
+        ctx.moveTo(i * pixelSize, 0);
+        ctx.lineTo(i * pixelSize, gridSize * pixelSize);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(0, i * pixelSize);
+        ctx.lineTo(gridSize * pixelSize, i * pixelSize);
+        ctx.stroke();
       }
     }
 
-    function getSelectionArea(p1, p2) {
-      return {
-        x1: Math.min(p1.x, p2.x),
-        y1: Math.min(p1.y, p2.y),
-        x2: Math.max(p1.x, p2.x),
-        y2: Math.max(p1.y, p2.y),
-      };
+    function getCanvasPos(e) {
+      const rect = canvas.getBoundingClientRect();
+      let clientX, clientY;
+      if (e.touches && e.touches.length) {
+        clientX = e.touches[0].clientX;
+        clientY = e.touches[0].clientY;
+      } else {
+        clientX = e.clientX;
+        clientY = e.clientY;
+      }
+      const x = Math.floor((clientX - rect.left) / pixelSize);
+      const y = Math.floor((clientY - rect.top) / pixelSize);
+      return { x, y };
     }
 
-    function highlightSelection(area) {
-      ctx.strokeStyle = 'red';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(area.x1 * pixelSize, area.y1 * pixelSize, (area.x2 - area.x1 + 1) * pixelSize, (area.y2 - area.y1 + 1) * pixelSize);
+    function drawPixel(e) {
+      const { x, y } = getCanvasPos(e);
+      if (x >= 0 && x < gridSize && y >= 0 && y < gridSize) {
+        if (pickingColor) {
+          pickedColor = frames[currentFrame][y][x];
+          pickedColorDisplay.style.backgroundColor = pickedColor;
+          pickingColor = false;
+          pickerBtn.classList.remove('active');
+        } else {
+          frames[currentFrame][y][x] = colorPicker.value;
+        }
+        drawFrame();
+        updateUsedColors();
+      }
     }
 
-    function createEmptyFrame() {
-      return Array.from({ length: gridSize }, () => Array(gridSize).fill('#ffffff'));
+    function handlePointerDown(e) {
+      e.preventDefault();
+      isDrawing = true;
+      drawPixel(e);
+      hidePopupColors();
+    }
+    function handlePointerMove(e) {
+      e.preventDefault();
+      if (isDrawing && !pickingColor) {
+        drawPixel(e);
+      }
+    }
+    function handlePointerUp(e) {
+      e.preventDefault();
+      isDrawing = false;
+    }
+
+    canvas.addEventListener('mousedown', handlePointerDown);
+    canvas.addEventListener('mousemove', handlePointerMove);
+    canvas.addEventListener('mouseup', handlePointerUp);
+    canvas.addEventListener('mouseleave', handlePointerUp);
+
+    canvas.addEventListener('touchstart', handlePointerDown);
+    canvas.addEventListener('touchmove', handlePointerMove);
+    canvas.addEventListener('touchend', handlePointerUp);
+    canvas.addEventListener('touchcancel', handlePointerUp);
+
+    function updateFrameButtons() {
+      frameButtons.innerHTML = '';
+      frames.forEach((frame, i) => {
+        const miniCanvas = document.createElement('canvas');
+        miniCanvas.width = 80;
+        miniCanvas.height = 80;
+        miniCanvas.style.border = i === currentFrame ? '3px solid blue' : '1px solid #888';
+        miniCanvas.style.marginBottom = '5px';
+        miniCanvas.style.cursor = 'pointer';
+
+        const miniCtx = miniCanvas.getContext('2d');
+        miniCtx.clearRect(0, 0, miniCanvas.width, miniCanvas.height);
+        const scale = miniCanvas.width / gridSize;
+
+        for (let y = 0; y < gridSize; y++) {
+          for (let x = 0; x < gridSize; x++) {
+            miniCtx.fillStyle = frame[y][x];
+            miniCtx.fillRect(x * scale, y * scale, scale, scale);
+          }
+        }
+
+        miniCanvas.addEventListener('click', () => {
+          currentFrame = i;
+          drawFrame();
+          updateFrameButtons();
+          updateUsedColors();
+          hidePopupColors();
+        });
+
+        frameButtons.appendChild(miniCanvas);
+      });
     }
 
     function addFrame() {
-      frames.push(createEmptyFrame());
+      frames.push(createEmptyFrame(gridSize));
       currentFrame = frames.length - 1;
-      updateFrameButtons();
       drawFrame();
+      updateFrameButtons();
       updateUsedColors();
     }
 
     function duplicateFrame() {
-      const newFrame = JSON.parse(JSON.stringify(frames[currentFrame]));
-      frames.push(newFrame);
+      const copy = frames[currentFrame].map(row => row.slice());
+      frames.push(copy);
       currentFrame = frames.length - 1;
+      drawFrame();
       updateFrameButtons();
-      drawFrame();
       updateUsedColors();
-    }
-
-    function switchFrame(index) {
-      currentFrame = index;
-      drawFrame();
-      updateUsedColors();
-    }
-
-    function updateFrameButtons() {
-      frameButtons.innerHTML = '';
-      frames.forEach((_, i) => {
-        const btn = document.createElement('button');
-        btn.textContent = 'F' + (i + 1);
-        btn.onclick = () => switchFrame(i);
-        frameButtons.appendChild(btn);
-      });
     }
 
     function playAnimation() {
       if (animationInterval) return;
-      let i = 0;
+      let index = 0;
       animationInterval = setInterval(() => {
-        currentFrame = i;
+        currentFrame = index;
         drawFrame();
+        updateFrameButtons();
         updateUsedColors();
-        i = (i + 1) % frames.length;
-      }, 200);
+        index++;
+        if (index >= frames.length) index = 0;
+      }, 300);
     }
-
     function stopAnimation() {
       clearInterval(animationInterval);
       animationInterval = null;
     }
 
     function updateUsedColors() {
-      const colorCount = {};
-      frames[currentFrame].flat().forEach(c => {
-        colorCount[c] = (colorCount[c] || 0) + 1;
-      });
-      const sorted = Object.entries(colorCount).sort((a,b) => b[1] - a[1]);
       usedColorsDiv.innerHTML = '';
-      sorted.slice(0, 10).forEach(([color]) => {
-        const div = document.createElement('div');
-        div.className = 'used-color';
-        div.style.backgroundColor = color;
-        div.onclick = () => colorPicker.value = color;
-        usedColorsDiv.appendChild(div);
-      });
-    }
-
-    function showPopupColors(x, y, baseColor) {
-      popupColors.innerHTML = '';
-      popupColors.style.left = `${x}px`;
-      popupColors.style.top = `${y}px`;
-      paletteColors.forEach(c => {
-        const swatch = document.createElement('div');
-        swatch.className = 'color-swatch';
-        swatch.style.backgroundColor = c;
-        swatch.onclick = () => {
-          colorPicker.value = c;
-          popupColors.style.display = 'none';
+      const colorsSet = new Set();
+      frames[currentFrame].forEach(row => row.forEach(c => colorsSet.add(c)));
+      colorsSet.forEach(color => {
+        const cdiv = document.createElement('div');
+        cdiv.className = 'color-swatch';
+        cdiv.style.backgroundColor = color;
+        cdiv.title = color;
+        cdiv.onclick = () => {
+          colorPicker.value = color;
         };
-        popupColors.appendChild(swatch);
+        usedColorsDiv.appendChild(cdiv);
       });
-      popupColors.style.display = 'flex';
-      popupColors.style.flexWrap = 'wrap';
     }
 
-    updateFrameButtons();
+    pickerBtn.onclick = () => {
+      pickingColor = !pickingColor;
+      pickerBtn.classList.toggle('active');
+    };
+
+    // Sostituisci colore
+    replaceColorBtn.onclick = () => {
+      if (!pickedColor) {
+        alert('Prima seleziona un colore con il contagocce 🎨');
+        return;
+      }
+      popupColors.innerHTML = '';
+      // Mostra palette colori disponibili per sostituire
+      paletteColors.forEach(c => {
+        if (c.toLowerCase() !== pickedColor.toLowerCase()) {
+          const swatch = document.createElement('div');
+          swatch.className = 'color-swatch';
+          swatch.style.backgroundColor = c;
+          swatch.title = `Sostituisci ${pickedColor} con ${c}`;
+          swatch.onclick = () => {
+            // sostituisci in tutto il frame corrente
+            for(let y=0; y<gridSize; y++) {
+              for(let x=0; x<gridSize; x++) {
+                if(frames[currentFrame][y][x].toLowerCase() === pickedColor.toLowerCase()) {
+                  frames[currentFrame][y][x] = c;
+                }
+              }
+            }
+            pickedColor = null;
+            pickedColorDisplay.style.backgroundColor = 'transparent';
+            popupColors.style.display = 'none';
+            drawFrame();
+            updateUsedColors();
+          };
+          popupColors.appendChild(swatch);
+        }
+      });
+      // Posiziona popup vicino al pulsante
+      const rect = replaceColorBtn.getBoundingClientRect();
+      popupColors.style.top = (rect.bottom + window.scrollY) + 'px';
+      popupColors.style.left = (rect.left + window.scrollX) + 'px';
+      popupColors.style.display = 'flex';
+    };
+
+    function hidePopupColors() {
+      popupColors.style.display = 'none';
+    }
+
+    window.onclick = (e) => {
+      if (!popupColors.contains(e.target) && e.target !== replaceColorBtn) {
+        hidePopupColors();
+      }
+    };
+
+    resolutionSelect.onchange = () => {
+      // Cambia risoluzione
+      stopAnimation();
+      gridSize = parseInt(resolutionSelect.value);
+      pixelSize = Math.floor(640 / gridSize);
+      // Reset frames con nuova risoluzione: mantenendo il primo frame pulito
+      frames = [createEmptyFrame(gridSize)];
+      currentFrame = 0;
+      pickedColor = null;
+      pickedColorDisplay.style.backgroundColor = 'transparent';
+      drawFrame();
+      updateFrameButtons();
+      updateUsedColors();
+    };
+
+    // Setup palette
+    paletteColors.forEach(color => {
+      const swatch = document.createElement('div');
+      swatch.className = 'color-swatch';
+      swatch.style.backgroundColor = color;
+      swatch.title = color;
+      swatch.onclick = () => {
+        colorPicker.value = color;
+        pickingColor = false;
+        pickerBtn.classList.remove('active');
+      };
+      colorPalette.appendChild(swatch);
+    });
+
+    // Inizializza tutto
     drawFrame();
+    updateFrameButtons();
     updateUsedColors();
   </script>
 </body>
