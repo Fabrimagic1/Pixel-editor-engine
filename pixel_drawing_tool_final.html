@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pixel Tool con Fotogrammi e FPS</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #ccc;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+    #sidebar {
+      width: 180px;
+      background: #eee;
+      padding: 10px;
+      overflow-y: auto;
+      height: 100vh;
+      box-sizing: border-box;
+    }
+    #main {
+      flex: 1;
+      padding: 20px;
+      text-align: center;
+      overflow: auto;
+      user-select: none;
+    }
+    #canvasWrapper {
+      display: inline-block;
+      border: 1px solid #ccc;
+      position: relative;
+      background: white;
+    }
+    canvas {
+      image-rendering: pixelated;
+      background: #fff;
+      cursor: crosshair;
+      display: block;
+    }
+    .controls {
+      margin-top: 10px;
+    }
+    .frame-buttons button {
+      display: block;
+      width: 100%;
+      margin-bottom: 5px;
+      box-sizing: border-box;
+    }
+    .palette {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 2px;
+      max-width: 320px;
+      margin: auto;
+      margin-top: 10px;
+    }
+    .color-swatch {
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+      border: 1px solid #ccc;
+    }
+    #usedColors {
+      margin-top: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 2px;
+      justify-content: center;
+    }
+    .used-color {
+      width: 20px;
+      height: 20px;
+      border: 1px solid #000;
+      cursor: pointer;
+    }
+    #popupColors {
+      display: none;
+      position: absolute;
+      background: white;
+      border: 1px solid black;
+      padding: 5px;
+      z-index: 10;
+    }
+    #popupColors .color-swatch {
+      width: 20px;
+      height: 20px;
+      margin: 2px;
+    }
+    #previewColor {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      border: 2px solid black;
+      display: none;
+      pointer-events: none;
+      z-index: 20;
+      background: transparent;
+    }
+    #pickerBtn.active {
+      background: #aaf;
+      border: 2px solid #55f;
+    }
+  </style>
+</head>
+<body>
+  <div id="sidebar">
+    <h4>Fotogrammi</h4>
+    <div class="frame-buttons" id="frameButtons"></div>
+    <button onclick="addFrame()">➕ Nuovo</button>
+    <button onclick="duplicateFrame()">📄 Duplica</button>
+    <button onclick="undoFrame()">↩️ Indietro</button>
+    <button onclick="redoFrame()">↪️ Avanti</button>
+    <button onclick="playAnimation()">▶️ Play</button>
+    <button onclick="stopAnimation()">⏹️ Stop</button>
+    <button onclick="downloadCurrentFrame()">⬇️ Scarica</button>
+    <button onclick="downloadSpriteSheet()">🧩 Sprite Sheet</button>
+    <input type="file" accept="image/*" onchange="importImage(event)" />
+    <button onclick="toggleTool('select')">🟦 Seleziona</button>
+    <button onclick="toggleTool('fill')">🪣 Riempimento</button>
+    <button onclick="toggleTool('picker')" id="pickerBtn">🎯 Contagocce</button>
+    <br />
+    <label for="size">Grid:</label>
+    <select id="size" onchange="changeGridSize(this.value)">
+      <option value="16">16x16</option>
+      <option value="32" selected>32x32</option>
+    </select>
+    <br /><br />
+    <label for="fpsInput">FPS:</label>
+    <input
+      type="number"
+      id="fpsInput"
+      value="5"
+      min="1"
+      max="60"
+      style="width: 50px;"
+      title="Frames Per Second"
+    />
+  </div>
+  <div id="main">
+    <h2>Pixel Tool</h2>
+    <label>Colore: <input type="color" id="colorPicker" value="#000000" /></label>
+    <div class="palette" id="colorPalette"></div>
+    <div id="usedColors"></div>
+    <div id="canvasWrapper">
+      <canvas id="canvas"></canvas>
+      <div id="popupColors"></div>
+      <div id="previewColor"></div>
+    </div>
+  </div>
+  <script>
+    // Variabili globali
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const colorPicker = document.getElementById('colorPicker');
+    const frameButtonsDiv = document.getElementById('frameButtons');
+    const popupColors = document.getElementById('popupColors');
+    const previewColor = document.getElementById('previewColor');
+    const pickerBtn = document.getElementById('pickerBtn');
+    const fpsInput = document.getElementById('fpsInput');
+
+    let frames = [];
+    let currentFrameIndex = 0;
+    let gridSize = 32; // 16 o 32
+    let pixelSize = 16; // pixel visuali nel canvas per ogni pixel disegnato
+    let currentColor = '#000000';
+    let tool = 'select'; // select, fill, picker
+    let animationInterval = null;
+    let fps = 5;
+
+    // Funzioni
+
+    function createEmptyFrame() {
+      let frame = [];
+      for (let y = 0; y < gridSize; y++) {
+        let row = [];
+        for (let x = 0; x < gridSize; x++) {
+          row.push('#ffffff');
+        }
+        frame.push(row);
+      }
+      return frame;
+    }
+
+    function drawFrame() {
+      canvas.width = gridSize * pixelSize;
+      canvas.height = gridSize * pixelSize;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (frames.length === 0) return;
+      const frame = frames[currentFrameIndex];
+
+      // disegna i pixel
+      for (let y = 0; y < gridSize; y++) {
+        for (let x = 0; x < gridSize; x++) {
+          ctx.fillStyle = frame[y][x];
+          ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
+        }
+      }
+
+      // disegna la griglia
+      ctx.strokeStyle = '#ddd';
+      ctx.lineWidth = 1;
+      for (let x = 0; x <= gridSize; x++) {
+        ctx.beginPath();
+        ctx.moveTo(x * pixelSize + 0.5, 0);
+        ctx.lineTo(x * pixelSize + 0.5, canvas.height);
+        ctx.stroke();
+      }
+      for (let y = 0; y <= gridSize; y++) {
+        ctx.beginPath();
+        ctx.moveTo(0, y * pixelSize + 0.5);
+        ctx.lineTo(canvas.width, y * pixelSize + 0.5);
+        ctx.stroke();
+      }
+    }
+
+    function updateFrameButtons() {
+      frameButtonsDiv.innerHTML = '';
+      frames.forEach((f, i) => {
+        let btn = document.createElement('button');
+        btn.textContent = `Frame ${i + 1}`;
+        btn.style.fontWeight = i === currentFrameIndex ? 'bold' : 'normal';
+        btn.onclick = () => {
+          stopAnimation();
+          currentFrameIndex = i;
+          drawFrame();
+          updateFrameButtons();
+          updateUsedColors();
+        };
+        frameButtonsDiv.appendChild(btn);
+      });
+    }
+
+    function addFrame() {
+      frames.push(createEmptyFrame());
+      currentFrameIndex = frames.length - 1;
+      drawFrame();
+      updateFrameButtons();
+      updateUsedColors();
+    }
+
+    function duplicateFrame() {
+      if (frames.length === 0) return;
+      const copy = JSON.parse(JSON.stringify(frames[currentFrameIndex]));
+      frames.splice(currentFrameIndex + 1, 0, copy);
+      currentFrameIndex++;
+      drawFrame();
+      updateFrameButtons();
+      updateUsedColors();
+    }
+
+    function toggleTool(t) {
+      tool = t;
+      // Evidenzia il bottone contagocce
+      if (tool === 'picker') {
+        pickerBtn.classList.add('active');
+        canvas.style.cursor = 'crosshair';
+      } else {
+        pickerBtn.classList.remove('active');
+        canvas.style.cursor = 'crosshair';
+      }
+    }
+
+    function changeGridSize(size) {
+      if (size != 16 && size != 32) return;
+      gridSize = parseInt(size);
+      pixelSize = 16;
+      // Ridisegna i frame esistenti ridimensionandoli
+      frames = frames.map(frame => {
+        let newFrame = createEmptyFrame();
+        for (let y = 0; y < Math.min(gridSize, frame.length); y++) {
+          for (let x = 0; x < Math.min(gridSize, frame[0].length); x++) {
+            newFrame[y][x] = frame[y][x];
+          }
+        }
+        return newFrame;
+      });
+      drawFrame();
+      updateFrameButtons();
+      updateUsedColors();
+    }
+
+    function drawPixel(x, y, color) {
+      if (x < 0 || y < 0 || x >= gridSize || y >= gridSize) return;
+      frames[currentFrameIndex][y][x] = color;
+      drawFrame();
+      updateUsedColors();
+    }
+
+    function fillArea(x, y, targetColor, replacementColor) {
+      if (targetColor === replacementColor) return;
+      let frame = frames[currentFrameIndex];
+      let stack = [[x, y]];
+      while (stack.length > 0) {
+        let [cx, cy] = stack.pop();
+        if (
+          cx >= 0 &&
+          cy >= 0 &&
+          cx < gridSize &&
+          cy < gridSize &&
+          frame[cy][cx] === targetColor
+        ) {
+          frame[cy][cx] = replacementColor;
+          stack.push([cx + 1, cy]);
+          stack.push([cx - 1, cy]);
+          stack.push([cx, cy + 1]);
+          stack.push([cx, cy - 1]);
+        }
+      }
+      drawFrame();
+      updateUsedColors();
+    }
+
+    // Gestione colori usati
+    function updateUsedColors() {
+      const usedColorsDiv = document.getElementById('usedColors');
+      usedColorsDiv.innerHTML = '';
+      if (frames.length === 0) return;
+      const frame = frames[currentFrameIndex];
+      let colorsCount = {};
+      for (let y = 0; y < gridSize; y++) {
+        for (let x = 0; x < gridSize; x++) {
+          let c = frame[y][x];
+          colorsCount[c] = (colorsCount[c] || 0) + 1;
+        }
+      }
+      // Ordina per frequenza e prendi max 10
+      let sortedColors = Object.entries(colorsCount)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map((c) => c[0]);
+      sortedColors.forEach((c) => {
+        let div = document.createElement('div');
+        div.className = 'used-color';
+        div.style.backgroundColor = c;
+        div.onclick = () => {
+          currentColor = c;
+          colorPicker.value = c;
+        };
+        usedColorsDiv.appendChild(div);
+      });
+    }
+
+    // Disegno e interazioni canvas
+    let isDrawing = false;
+
+    function getCursorPosition(e) {
+      const rect = canvas.getBoundingClientRect();
+      let clientX, clientY;
+      if (e.touches && e.touches.length > 0) {
+        clientX = e.touches[0].clientX;
+        clientY = e.touches[0].clientY;
+      } else {
+        clientX = e.clientX;
+        clientY = e.clientY;
+      }
+      let x = Math.floor((clientX - rect.left) / pixelSize);
+      let y = Math.floor((clientY - rect.top) / pixelSize);
+      return { x, y };
+    }
+
+    canvas.addEventListener('mousedown', e => {
+      isDrawing = true;
+      handleDraw(e);
+    });
+    canvas.addEventListener('mousemove', e => {
+      if (isDrawing) handleDraw(e);
+    });
+    canvas.addEventListener('mouseup', e => {
+      isDrawing = false;
+    });
+    canvas.addEventListener('mouseleave', e => {
+      isDrawing = false;
+    });
+
+    // Touch support
+    canvas.addEventListener('touchstart', e => {
+      e.preventDefault();
+      isDrawing = true;
+      handleDraw(e);
+    });
+    canvas.addEventListener('touchmove', e => {
+      e.preventDefault();
+      if (isDrawing) handleDraw(e);
+    });
+    canvas.addEventListener('touchend', e => {
+      e.preventDefault();
+      isDrawing = false;
+    });
+
+    function handleDraw(e) {
+      const pos = getCursorPosition(e);
+      if (pos.x < 0 || pos.y < 0 || pos.x >= gridSize || pos.y >= gridSize)
+        return;
+
+      if (tool === 'select') {
+        drawPixel(pos.x, pos.y, currentColor);
+      } else if (tool === 'fill') {
+        let targetColor = frames[currentFrameIndex][pos.y][pos.x];
+        fillArea(pos.x, pos.y, targetColor, currentColor);
+      } else if (tool === 'picker') {
+        let pickedColor = frames[currentFrameIndex][pos.y][pos.x];
+        currentColor = pickedColor;
+        colorPicker.value = pickedColor;
+        showPreviewColor(pickedColor, e);
+      }
+    }
+
+    function showPreviewColor(color, e) {
+      previewColor.style.backgroundColor = color;
+      previewColor.style.display = 'block';
+      let rect = canvas.getBoundingClientRect();
+      let clientX, clientY;
+      if (e.touches && e.touches.length > 0) {
+        clientX = e.touches[0].clientX;
+        clientY = e.touches[0].clientY;
+      } else {
+        clientX = e.clientX;
+        clientY = e.clientY;
+      }
+      previewColor.style.left = clientX - rect.left + 10 + 'px';
+      previewColor.style.top = clientY - rect.top + 10 + 'px';
+      setTimeout(() => {
+        previewColor.style.display = 'none';
+      }, 1000);
+    }
+
+    // Toggle contagocce / riempimento / selezione
+    toggleTool('select'); // default
+
+    colorPicker.addEventListener('change', e => {
+      currentColor = e.target.value;
+      toggleTool('select'); // torna a selezione dopo cambio colore
+    });
+
+    // Gestione frame (undo/redo)
+    let history = [];
+    let redoStack = [];
+
+    function saveHistory() {
+      const snapshot = JSON.stringify(frames);
+      history.push(snapshot);
+      if (history.length > 50) history.shift(); // limita storia
+      redoStack = [];
+    }
+
+    function undoFrame() {
+      if (history.length === 0) return;
+      redoStack.push(JSON.stringify(frames));
+      const last = history.pop();
+      frames = JSON.parse(last);
+      if (currentFrameIndex >= frames.length) currentFrameIndex = frames.length - 1;
+      drawFrame();
+      updateFrameButtons();
+      updateUsedColors();
+    }
+
+    function redoFrame() {
+      if (redoStack.length === 0) return;
+      history.push(JSON.stringify(frames));
+      const next = redoStack.pop();
+      frames = JSON.parse(next);
+      if (currentFrameIndex >= frames.length) currentFrameIndex = frames.length - 1;
+      drawFrame();
+      updateFrameButtons();
+      updateUsedColors();
+    }
+
+    // Quando si modifica il frame, salva la storia
+    function onFrameChange() {
+      saveHistory();
+      drawFrame();
+      updateUsedColors();
+    }
+
+    // Aggiunge frame nuovo vuoto
+    addFrame();
+
+    // Duplica frame
+    function duplicateFrame() {
+      if (frames.length === 0) return;
+      const copy = JSON.parse(JSON.stringify(frames[currentFrameIndex]));
+      frames.splice(currentFrameIndex + 1, 0, copy);
+      currentFrameIndex++;
+      drawFrame();
+      updateFrameButtons();
+      updateUsedColors();
+      saveHistory();
+    }
+
+    // Animazione con FPS regolabile
+    fpsInput.addEventListener('change', e => {
+      let val = parseInt(e.target.value);
+      if (val >= 1 && val <= 60) {
+        fps = val;
+        if (animationInterval !== null) {
+          stopAnimation();
+          playAnimation();
+        }
+      } else {
+        e.target.value = fps;
+      }
+    });
+
+    function playAnimation() {
+      if (animationInterval !== null) return;
+      let i = 0;
+      animationInterval = setInterval(() => {
+        currentFrameIndex = i % frames.length;
+        drawFrame();
+        updateFrameButtons();
+        updateUsedColors();
+        i++;
+      }, 1000 / fps);
+    }
+
+    function stopAnimation() {
+      if (animationInterval !== null) {
+        clearInterval(animationInterval);
+        animationInterval = null;
+      }
+    }
+
+    // Download frame singolo PNG
+    function downloadCurrentFrame() {
+      if (frames.length === 0) return;
+      const tmp = document.createElement('canvas');
+      tmp.width = gridSize;
+      tmp.height = gridSize;
+      const tmpCtx = tmp.getContext('2d');
+      const frame = frames[currentFrameIndex];
+      for (let y = 0; y < gridSize; y++) {
+        for (let x = 0; x < gridSize; x++) {
+          tmpCtx.fillStyle = frame[y][x];
+          tmpCtx.fillRect(x, y, 1, 1);
+        }
+      }
+      tmp.toBlob(blob => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `frame_${currentFrameIndex + 1}.png`;
+        a.click();
+      });
+    }
+
+    // Download sprite sheet PNG
+    function downloadSpriteSheet() {
+      if (frames.length === 0) return;
+      const tmp = document.createElement('canvas');
+      tmp.width = gridSize * frames.length;
+      tmp.height = gridSize;
+      const tmpCtx = tmp.getContext('2d');
+      for (let f = 0; f < frames.length; f++) {
+        const frame = frames[f];
+        for (let y = 0; y < gridSize; y++) {
+          for (let x = 0; x < gridSize; x++) {
+            tmpCtx.fillStyle = frame[y][x];
+            tmpCtx.fillRect(x + f * gridSize, y, 1, 1);
+          }
+        }
+      }
+      tmp.toBlob(blob => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'sprite_sheet.png';
+        a.click();
+      });
+    }
+
+    // Importa immagine (esempio semplice: ridimensiona e prende colori)
+    function importImage(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const img = new Image();
+      img.onload = () => {
+        // Ridimensiona immagine in canvas temporaneo
+        const tmpCanvas = document.createElement('canvas');
+        tmpCanvas.width = gridSize;
+        tmpCanvas.height = gridSize;
+        const tmpCtx = tmpCanvas.getContext('2d');
+        tmpCtx.clearRect(0, 0, gridSize, gridSize);
+        // Disegna immagine scalata
+        tmpCtx.drawImage(img, 0, 0, gridSize, gridSize);
+        // Leggi dati pixel
+        const imgData = tmpCtx.getImageData(0, 0, gridSize, gridSize);
+        let newFrame = createEmptyFrame();
+        for (let y = 0; y < gridSize; y++) {
+          for (let x = 0; x < gridSize; x++) {
+            const i = (y * gridSize + x) * 4;
+            const r = imgData.data[i];
+            const g = imgData.data[i + 1];
+            const b = imgData.data[i + 2];
+            const a = imgData.data[i + 3];
+            if (a === 0) {
+              newFrame[y][x] = '#ffffff';
+            } else {
+              newFrame[y][x] =
+                'rgb(' + r + ',' + g + ',' + b + ')';
+            }
+          }
+        }
+        frames[currentFrameIndex] = newFrame;
+        drawFrame();
+        updateUsedColors();
+        saveHistory();
+      };
+      img.src = URL.createObjectURL(file);
+    }
+
+    // Costruisci palette colori di base
+    function createPalette() {
+      const baseColors = [
+        '#000000', '#7f7f7f', '#880015', '#ed1c24', '#ff7f27',
+        '#fff200', '#22b14c', '#00a2e8', '#3f48cc', '#a349a4',
+        '#ffffff', '#c3c3c3', '#b97a57', '#ffaec9', '#ffc90e',
+        '#efe4b0', '#b5e61d', '#99d9ea', '#7092be', '#c8bfe7',
+      ];
+      const paletteDiv = document.getElementById('colorPalette');
+      baseColors.forEach(c => {
+        const div = document.createElement('div');
+        div.className = 'color-swatch';
+        div.style.backgroundColor = c;
+        div.onclick = () => {
+          currentColor = c;
+          colorPicker.value = c;
+          toggleTool('select');
+        };
+        paletteDiv.appendChild(div);
+      });
+    }
+
+    createPalette();
+    drawFrame();
+    updateFrameButtons();
+    updateUsedColors();
+
+    // Salva modifiche su ogni disegno
+    canvas.addEventListener('mouseup', () => onFrameChange());
+    canvas.addEventListener('touchend', () => onFrameChange());
+  </script>
+</body>
+</html>
