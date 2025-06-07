@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Pixel Tool con Fotogrammi e FPS</title>
+  <title>Pixel Tool with Onion Skin & Frame Naming</title>
   <style>
     body {
       font-family: sans-serif;
@@ -15,7 +15,7 @@
       overflow: hidden;
     }
     #sidebar {
-      width: 180px;
+      width: 210px;
       background: #eee;
       padding: 10px;
       overflow-y: auto;
@@ -45,10 +45,56 @@
       margin-top: 10px;
     }
     .frame-buttons button {
-      display: block;
+      display: flex;
+      align-items: center;
       width: 100%;
       margin-bottom: 5px;
       box-sizing: border-box;
+      text-align: left;
+      padding: 2px 4px;
+      font-size: 12px;
+      vertical-align: middle;
+      height: 38px;
+      overflow: hidden;
+      gap: 4px;
+      position: relative;
+    }
+    .frame-mini {
+      flex-shrink: 0;
+      margin-right: 4px;
+    }
+    .frame-label {
+      flex: 1 1 60px;
+      margin-right: 4px;
+      background: transparent;
+      border: none;
+      font-size: 13px;
+      cursor: pointer;
+      outline: none;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      padding: 2px 2px;
+    }
+    .frame-label.editing {
+      background: #fff8c6;
+      border: 1px solid #f1c40f;
+    }
+    .frame-del {
+      flex-shrink: 0;
+      color: #e74c3c;
+      background: none;
+      border: none;
+      font-size: 16px;
+      cursor: pointer;
+      margin-left: 2px;
+      padding: 0 3px;
+      border-radius: 3px;
+      transition: background .1s;
+    }
+    .frame-del:hover {
+      background: #ffeaea;
     }
     .palette {
       display: flex;
@@ -105,24 +151,45 @@
       background: #aaf;
       border: 2px solid #55f;
     }
+    #togglePrevLayerBtn.active {
+      background: #aaf;
+      border: 2px solid #55f;
+    }
+    #deleteFrameBtn {
+      width: 100%;
+      margin-bottom: 8px;
+      background: #ffeaea;
+      border: 1px solid #e74c3c;
+      color: #c0392b;
+      font-weight: bold;
+      cursor: pointer;
+      border-radius: 4px;
+      padding: 5px;
+      transition: background .1s;
+    }
+    #deleteFrameBtn:hover {
+      background: #ffd5d5;
+    }
   </style>
 </head>
 <body>
   <div id="sidebar">
-    <h4>Fotogrammi</h4>
+    <h4>Frames</h4>
     <div class="frame-buttons" id="frameButtons"></div>
-    <button onclick="addFrame()">➕ Nuovo</button>
-    <button onclick="duplicateFrame()">📄 Duplica</button>
-    <button onclick="undoFrame()">↩️ Indietro</button>
-    <button onclick="redoFrame()">↪️ Avanti</button>
+    <button id="deleteFrameBtn" title="Delete selected frame">❌ Delete Frame</button>
+    <button onclick="addFrame()">➕ New Frame</button>
+    <button onclick="duplicateFrame()">📄 Duplicate</button>
+    <button onclick="undoFrame()">↩️ Undo</button>
+    <button onclick="redoFrame()">↪️ Redo</button>
     <button onclick="playAnimation()">▶️ Play</button>
     <button onclick="stopAnimation()">⏹️ Stop</button>
-    <button onclick="downloadCurrentFrame()">⬇️ Scarica</button>
+    <button onclick="downloadCurrentFrame()">⬇️ Download</button>
     <button onclick="downloadSpriteSheet()">🧩 Sprite Sheet</button>
     <input type="file" accept="image/*" onchange="importImage(event)" />
-    <button onclick="toggleTool('select')">🟦 Seleziona</button>
-    <button onclick="toggleTool('fill')">🪣 Riempimento</button>
-    <button onclick="toggleTool('picker')" id="pickerBtn">🎯 Contagocce</button>
+    <button onclick="toggleTool('select')">🟦 Select</button>
+    <button onclick="toggleTool('fill')">🪣 Fill</button>
+    <button onclick="toggleTool('picker')" id="pickerBtn">🎯 Eyedropper</button>
+    <button id="togglePrevLayerBtn" title="Toggle onion skin">👁️ Onion Skin</button>
     <br />
     <label for="size">Grid:</label>
     <select id="size" onchange="changeGridSize(this.value)">
@@ -143,7 +210,7 @@
   </div>
   <div id="main">
     <h2>Pixel Tool</h2>
-    <label>Colore: <input type="color" id="colorPicker" value="#000000" /></label>
+    <label>Color: <input type="color" id="colorPicker" value="#000000" /></label>
     <div class="palette" id="colorPalette"></div>
     <div id="usedColors"></div>
     <div id="canvasWrapper">
@@ -153,26 +220,26 @@
     </div>
   </div>
   <script>
-    // Variabili globali
+    // Globals
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
     const colorPicker = document.getElementById('colorPicker');
     const frameButtonsDiv = document.getElementById('frameButtons');
-    const popupColors = document.getElementById('popupColors');
-    const previewColor = document.getElementById('previewColor');
     const pickerBtn = document.getElementById('pickerBtn');
     const fpsInput = document.getElementById('fpsInput');
+    const togglePrevLayerBtn = document.getElementById('togglePrevLayerBtn');
+    const deleteFrameBtn = document.getElementById('deleteFrameBtn');
 
     let frames = [];
     let currentFrameIndex = 0;
-    let gridSize = 32; // 16 o 32
-    let pixelSize = 16; // pixel visuali nel canvas per ogni pixel disegnato
+    let gridSize = 32;
+    let pixelSize = 16;
     let currentColor = '#000000';
-    let tool = 'select'; // select, fill, picker
+    let tool = 'select';
     let animationInterval = null;
     let fps = 5;
-
-    // Funzioni
+    let showPrevLayer = false;
+    let frameNames = [];
 
     function createEmptyFrame() {
       let frame = [];
@@ -194,7 +261,21 @@
       if (frames.length === 0) return;
       const frame = frames[currentFrameIndex];
 
-      // disegna i pixel
+      // Onion skin: previous layer
+      if (showPrevLayer && frames.length > 1 && currentFrameIndex > 0) {
+        let prev = frames[currentFrameIndex - 1];
+        ctx.save();
+        ctx.globalAlpha = 0.35;
+        for (let y = 0; y < gridSize; y++) {
+          for (let x = 0; x < gridSize; x++) {
+            ctx.fillStyle = prev[y][x];
+            ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
+          }
+        }
+        ctx.restore();
+      }
+
+      // Draw current frame
       for (let y = 0; y < gridSize; y++) {
         for (let x = 0; x < gridSize; x++) {
           ctx.fillStyle = frame[y][x];
@@ -202,7 +283,7 @@
         }
       }
 
-      // disegna la griglia
+      // Draw grid
       ctx.strokeStyle = '#ddd';
       ctx.lineWidth = 1;
       for (let x = 0; x <= gridSize; x++) {
@@ -223,8 +304,74 @@
       frameButtonsDiv.innerHTML = '';
       frames.forEach((f, i) => {
         let btn = document.createElement('button');
-        btn.textContent = `Frame ${i + 1}`;
+        // Miniature
+        let mini = document.createElement('canvas');
+        mini.className = "frame-mini";
+        mini.width = 32; mini.height = 32;
+        let mctx = mini.getContext('2d');
+        let miniGrid = f.length;
+        for (let y = 0; y < miniGrid; y++) {
+          for (let x = 0; x < miniGrid; x++) {
+            mctx.fillStyle = f[y][x];
+            mctx.fillRect(
+              Math.floor(x * mini.width / miniGrid),
+              Math.floor(y * mini.height / miniGrid),
+              Math.ceil(mini.width / miniGrid),
+              Math.ceil(mini.height / miniGrid)
+            );
+          }
+        }
+        btn.appendChild(mini);
+
+        // Editable label
+        let label = document.createElement('input');
+        label.type = "text";
+        label.className = "frame-label";
+        label.value = frameNames[i] || `Frame ${i + 1}`;
+        label.setAttribute('readonly', true);
+
+        // Edit on double click/click
+        label.addEventListener('dblclick', startEditLabel);
+        label.addEventListener('click', startEditLabel);
+
+        function startEditLabel(e) {
+          e.stopPropagation();
+          label.readOnly = false;
+          label.classList.add('editing');
+          label.focus();
+          label.select();
+        }
+
+        label.addEventListener('blur', function() {
+          frameNames[i] = label.value.trim() || `Frame ${i + 1}`;
+          label.value = frameNames[i];
+          label.readOnly = true;
+          label.classList.remove('editing');
+        });
+        label.addEventListener('keydown', function(e) {
+          if (e.key === 'Enter') {
+            label.blur();
+            btn.focus();
+          }
+        });
+        btn.appendChild(label);
+
+        // Delete button
+        let del = document.createElement('button');
+        del.type = "button";
+        del.innerHTML = "❌";
+        del.className = "frame-del";
+        del.title = "Delete this frame";
+        del.onclick = (ev) => {
+          ev.stopPropagation();
+          deleteFrame(i);
+        };
+        btn.appendChild(del);
+
+        // Current frame highlight
         btn.style.fontWeight = i === currentFrameIndex ? 'bold' : 'normal';
+        btn.style.background = i === currentFrameIndex ? "#eef8ff" : "";
+
         btn.onclick = () => {
           stopAnimation();
           currentFrameIndex = i;
@@ -238,6 +385,7 @@
 
     function addFrame() {
       frames.push(createEmptyFrame());
+      frameNames.push(`Frame ${frames.length}`);
       currentFrameIndex = frames.length - 1;
       drawFrame();
       updateFrameButtons();
@@ -248,15 +396,36 @@
       if (frames.length === 0) return;
       const copy = JSON.parse(JSON.stringify(frames[currentFrameIndex]));
       frames.splice(currentFrameIndex + 1, 0, copy);
+      let base = frameNames[currentFrameIndex] || `Frame ${currentFrameIndex + 1}`;
+      frameNames.splice(currentFrameIndex + 1, 0, base + " (copy)");
       currentFrameIndex++;
       drawFrame();
       updateFrameButtons();
       updateUsedColors();
+      saveHistory();
     }
+
+    function deleteFrame(index) {
+      if (frames.length === 1) {
+        frames[0] = createEmptyFrame();
+        frameNames[0] = "Frame 1";
+        currentFrameIndex = 0;
+      } else {
+        frames.splice(index, 1);
+        frameNames.splice(index, 1);
+        if (currentFrameIndex >= frames.length) currentFrameIndex = frames.length - 1;
+      }
+      drawFrame();
+      updateFrameButtons();
+      updateUsedColors();
+      saveHistory();
+    }
+    deleteFrameBtn.onclick = function() {
+      deleteFrame(currentFrameIndex);
+    };
 
     function toggleTool(t) {
       tool = t;
-      // Evidenzia il bottone contagocce
       if (tool === 'picker') {
         pickerBtn.classList.add('active');
         canvas.style.cursor = 'crosshair';
@@ -270,13 +439,14 @@
       if (size != 16 && size != 32) return;
       gridSize = parseInt(size);
       pixelSize = 16;
-      // Ridisegna i frame esistenti ridimensionandoli
       frames = frames.map(frame => {
-        let newFrame = createEmptyFrame();
-        for (let y = 0; y < Math.min(gridSize, frame.length); y++) {
-          for (let x = 0; x < Math.min(gridSize, frame[0].length); x++) {
-            newFrame[y][x] = frame[y][x];
+        let newFrame = [];
+        for (let y = 0; y < gridSize; y++) {
+          let row = [];
+          for (let x = 0; x < gridSize; x++) {
+            row.push(frame[y] && frame[y][x] ? frame[y][x] : '#ffffff');
           }
+          newFrame.push(row);
         }
         return newFrame;
       });
@@ -316,7 +486,6 @@
       updateUsedColors();
     }
 
-    // Gestione colori usati
     function updateUsedColors() {
       const usedColorsDiv = document.getElementById('usedColors');
       usedColorsDiv.innerHTML = '';
@@ -329,7 +498,6 @@
           colorsCount[c] = (colorsCount[c] || 0) + 1;
         }
       }
-      // Ordina per frequenza e prendi max 10
       let sortedColors = Object.entries(colorsCount)
         .sort((a, b) => b[1] - a[1])
         .slice(0, 10)
@@ -346,7 +514,6 @@
       });
     }
 
-    // Disegno e interazioni canvas
     let isDrawing = false;
 
     function getCursorPosition(e) {
@@ -407,53 +574,39 @@
         let pickedColor = frames[currentFrameIndex][pos.y][pos.x];
         currentColor = pickedColor;
         colorPicker.value = pickedColor;
-        showPreviewColor(pickedColor, e);
       }
     }
 
-    function showPreviewColor(color, e) {
-      previewColor.style.backgroundColor = color;
-      previewColor.style.display = 'block';
-      let rect = canvas.getBoundingClientRect();
-      let clientX, clientY;
-      if (e.touches && e.touches.length > 0) {
-        clientX = e.touches[0].clientX;
-        clientY = e.touches[0].clientY;
-      } else {
-        clientX = e.clientX;
-        clientY = e.clientY;
-      }
-      previewColor.style.left = clientX - rect.left + 10 + 'px';
-      previewColor.style.top = clientY - rect.top + 10 + 'px';
-      setTimeout(() => {
-        previewColor.style.display = 'none';
-      }, 1000);
-    }
+    togglePrevLayerBtn.onclick = function() {
+      showPrevLayer = !showPrevLayer;
+      this.classList.toggle('active', showPrevLayer);
+      drawFrame();
+    };
 
-    // Toggle contagocce / riempimento / selezione
     toggleTool('select'); // default
 
     colorPicker.addEventListener('change', e => {
       currentColor = e.target.value;
-      toggleTool('select'); // torna a selezione dopo cambio colore
+      toggleTool('select');
     });
 
-    // Gestione frame (undo/redo)
     let history = [];
     let redoStack = [];
 
     function saveHistory() {
-      const snapshot = JSON.stringify(frames);
+      const snapshot = JSON.stringify({frames, frameNames});
       history.push(snapshot);
-      if (history.length > 50) history.shift(); // limita storia
+      if (history.length > 50) history.shift();
       redoStack = [];
     }
 
     function undoFrame() {
       if (history.length === 0) return;
-      redoStack.push(JSON.stringify(frames));
+      redoStack.push(JSON.stringify({frames, frameNames}));
       const last = history.pop();
-      frames = JSON.parse(last);
+      let data = JSON.parse(last);
+      frames = data.frames;
+      frameNames = data.frameNames;
       if (currentFrameIndex >= frames.length) currentFrameIndex = frames.length - 1;
       drawFrame();
       updateFrameButtons();
@@ -462,38 +615,23 @@
 
     function redoFrame() {
       if (redoStack.length === 0) return;
-      history.push(JSON.stringify(frames));
+      history.push(JSON.stringify({frames, frameNames}));
       const next = redoStack.pop();
-      frames = JSON.parse(next);
+      let data = JSON.parse(next);
+      frames = data.frames;
+      frameNames = data.frameNames;
       if (currentFrameIndex >= frames.length) currentFrameIndex = frames.length - 1;
       drawFrame();
       updateFrameButtons();
       updateUsedColors();
     }
 
-    // Quando si modifica il frame, salva la storia
     function onFrameChange() {
       saveHistory();
       drawFrame();
       updateUsedColors();
     }
 
-    // Aggiunge frame nuovo vuoto
-    addFrame();
-
-    // Duplica frame
-    function duplicateFrame() {
-      if (frames.length === 0) return;
-      const copy = JSON.parse(JSON.stringify(frames[currentFrameIndex]));
-      frames.splice(currentFrameIndex + 1, 0, copy);
-      currentFrameIndex++;
-      drawFrame();
-      updateFrameButtons();
-      updateUsedColors();
-      saveHistory();
-    }
-
-    // Animazione con FPS regolabile
     fpsInput.addEventListener('change', e => {
       let val = parseInt(e.target.value);
       if (val >= 1 && val <= 60) {
@@ -526,7 +664,6 @@
       }
     }
 
-    // Download frame singolo PNG
     function downloadCurrentFrame() {
       if (frames.length === 0) return;
       const tmp = document.createElement('canvas');
@@ -548,7 +685,6 @@
       });
     }
 
-    // Download sprite sheet PNG
     function downloadSpriteSheet() {
       if (frames.length === 0) return;
       const tmp = document.createElement('canvas');
@@ -572,21 +708,17 @@
       });
     }
 
-    // Importa immagine (esempio semplice: ridimensiona e prende colori)
     function importImage(event) {
       const file = event.target.files[0];
       if (!file) return;
       const img = new Image();
       img.onload = () => {
-        // Ridimensiona immagine in canvas temporaneo
         const tmpCanvas = document.createElement('canvas');
         tmpCanvas.width = gridSize;
         tmpCanvas.height = gridSize;
         const tmpCtx = tmpCanvas.getContext('2d');
         tmpCtx.clearRect(0, 0, gridSize, gridSize);
-        // Disegna immagine scalata
         tmpCtx.drawImage(img, 0, 0, gridSize, gridSize);
-        // Leggi dati pixel
         const imgData = tmpCtx.getImageData(0, 0, gridSize, gridSize);
         let newFrame = createEmptyFrame();
         for (let y = 0; y < gridSize; y++) {
@@ -599,8 +731,7 @@
             if (a === 0) {
               newFrame[y][x] = '#ffffff';
             } else {
-              newFrame[y][x] =
-                'rgb(' + r + ',' + g + ',' + b + ')';
+              newFrame[y][x] = 'rgb(' + r + ',' + g + ',' + b + ')';
             }
           }
         }
@@ -612,7 +743,6 @@
       img.src = URL.createObjectURL(file);
     }
 
-    // Costruisci palette colori di base
     function createPalette() {
       const baseColors = [
         '#000000', '#7f7f7f', '#880015', '#ed1c24', '#ff7f27',
@@ -634,12 +764,12 @@
       });
     }
 
+    // Init
     createPalette();
+    addFrame();
     drawFrame();
     updateFrameButtons();
     updateUsedColors();
-
-    // Salva modifiche su ogni disegno
     canvas.addEventListener('mouseup', () => onFrameChange());
     canvas.addEventListener('touchend', () => onFrameChange());
   </script>
